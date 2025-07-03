@@ -10,7 +10,7 @@ function uploadPhoto() {
   const reader = new FileReader();
   reader.onloadend = function () {
     const base64 = reader.result.split(',')[1]; // hilangkan header data URL
-    fetch("https://script.google.com/macros/s/AKfycbw27RBd7Ocp3uxVbQCIxCfPZb0jSGW1k5Ajwb_361Bxzd5Qfb-rKCo2n7s6BVsBlfJ7/exec", {
+    fetch("https://script.google.com/macros/s/AKfycbw8odVMUOaxVZowR7BMHINhouPQuRbPrE2Vv3sZevXZCHdw1AL7Zldd6ng52uR4v4T7/exec", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
