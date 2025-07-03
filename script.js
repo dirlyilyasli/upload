@@ -9,8 +9,11 @@ function uploadPhoto() {
 
   const reader = new FileReader();
   reader.onloadend = function () {
-    const base64 = reader.result.split(',')[1]; // hilangkan header data URL
-    fetch("https://script.google.com/macros/s/AKfycbw8odVMUOaxVZowR7BMHINhouPQuRbPrE2Vv3sZevXZCHdw1AL7Zldd6ng52uR4v4T7/exec", {
+    const base64 = reader.result.split(',')[1];
+
+    console.log("Mengirim foto ke server...");
+
+    fetch("PASTE_URL_GOOGLE_SCRIPT_MU", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
@@ -18,10 +21,13 @@ function uploadPhoto() {
       body: "photo=" + encodeURIComponent(base64)
     })
     .then(res => res.text())
-    .then(msg => alert(msg))
+    .then(msg => {
+      console.log("Respon:", msg);
+      alert(msg);
+    })
     .catch(err => {
-      console.error(err);
-      alert("Gagal mengirim foto.");
+      console.error("Error kirim:", err);
+      alert("Gagal mengirim foto: " + err.message);
     });
   };
 
