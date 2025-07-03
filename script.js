@@ -13,7 +13,7 @@ function uploadPhoto() {
 
     console.log("Mengirim foto ke server...");
 
-    fetch("PASTE_URL_GOOGLE_SCRIPT_MU", {
+    fetch("https://script.google.com/macros/s/AKfycbwcyLoTfnaIPOd5tLC-I6Zrx9c7-EaHjCt7UsRWF7fbWaVcsan4gBrxOY72NM00HZIe/exec", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
