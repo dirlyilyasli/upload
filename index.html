@@ -1,15 +1,221 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <title>Upload Foto ke Google Drive</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RPG Landscape - Dual D-Pad</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; background-color: #000; overflow: hidden;
+            touch-action: none; font-family: sans-serif; color: white;
+            height: 100vh; width: 100vw;
+        }
+
+        #gameContainer {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%; z-index: 1;
+        }
+
+        canvas {
+            display: block; width: 100%; height: 100%;
+            image-rendering: pixelated;
+        }
+
+        #uiOverlay {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%; z-index: 10;
+            pointer-events: none;
+        }
+
+        /* --- STYLING D-PAD --- */
+        .dpad {
+            position: absolute; bottom: 30px; left: 30px;
+            display: grid; grid-template-columns: repeat(3, 50px);
+            grid-template-rows: repeat(3, 50px); gap: 10px;
+            pointer-events: auto;
+        }
+
+        .btn {
+            width: 85px; height: 85px;
+            /* Default pakai gambar normal */
+            background-image: url('dpad_normal.png');
+            background-size: 400% 100%;
+            background-repeat: no-repeat;
+            background-color: transparent;
+            border: none;
+            image-rendering: pixelated;
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Urutan di gambar kamu: Bawah(0), Atas(33%), Kiri(66%), Kanan(100%) */
+        /* Sesuaikan persentase ini jika urutan tombolmu berbeda */
+        .down  { grid-column: 2; grid-row: 3; background-position: 0% 0%; }
+        .up    { grid-column: 2; grid-row: 1; background-position: 33.3% 0%; }
+        .left  { grid-column: 1; grid-row: 2; background-position: 66.6% 0%; }
+        .right { grid-column: 3; grid-row: 2; background-position: 100% 0%; }
+
+        /* SAAT DITEKAN: Ganti file gambar ke dpad_pressed.png */
+        .btn:active, .btn.active-style { 
+            background-image: url('dpad_pressed.png');
+            transform: scale(0.95);
+        }
+
+        .debug-info {
+            position: absolute; top: 15px; left: 15px;
+            background: rgba(0,0,0,0.6); padding: 8px 12px;
+            font-size: 14px; border-radius: 8px; border: 1px solid #444;
+        }
+    </style>
 </head>
 <body>
-  <h2>Ambil Foto dan Kirim ke Google Drive</h2>
-  <input type="file" id="camera" accept="image/*" capture="environment">
-  <br><br>
-  <button onclick="uploadPhoto()">Kirim Foto</button>
 
-  <script src="script.js"></script>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div id="uiOverlay">
+        <div class="debug-info" id="debugDisplay">Gunakan D-Pad atau WASD</div>
+        <div class="dpad">
+            <button class="btn up" id="upBtn"></button>
+            <button class="btn left" id="leftBtn"></button>
+            <button class="btn down" id="downBtn"></button>
+            <button class="btn right" id="rightBtn"></button>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const debugDisplay = document.getElementById("debugDisplay");
+
+    // CONFIG
+    const DEBUG_MODE = false; 
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        ctx.imageSmoothingEnabled = false;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const CHAR_SCALE = 3;
+    const MAP_SCALE = 4;
+    const TILE_SIZE = 16 * CHAR_SCALE;
+    const MOVE_SPEED = 2 * CHAR_SCALE;
+    const MAP_WIDTH = 640 * MAP_SCALE;
+    const MAP_HEIGHT = 640 * MAP_SCALE;
+
+    const player = {
+        x: TILE_SIZE * 41, y: TILE_SIZE * 45,
+        targetX: TILE_SIZE * 41, targetY: TILE_SIZE * 45,
+        direction: 'down', isWalking: false, frame: 1
+    };
+
+    // Masukkan koordinat tabrakanmu di sini
+    const collisions = [[25,47],[39,46], [40,49], [43,50], [42,50], [41,50], [40,50], [39,49], [39,48], [39,48], [39,47], [39,45], [39,45], [38,45], [38,44], [37,44], [36,44], [35,44], [34,44], [33,44], [32,44], [31,44], [30,44], [29,44], [28,44], [27,45], [27,46], [26,47], [24,47], [23,46], [23,45], [23,44], [23,43], [23,42], [23,41], [23,40], [24,39], [25,40], [26,40], [27,40], [28,40], [29,40], [30,40], [31,40], [32,40], [33,40], [34,40], [35,40], [36,40], [37,40], [37,41], [38,42], [39,42], [40,42], [41,42], [42,42], [44,49], [44,48], [44,47], [44,46], [44,45], [44,44], [44,43], [44,42], [44,41], [44,40], [44,39], [44,38], [44,37], [44,36], [44,35], [43,35], [42,35], [42,38], [42,37], [42,38], [42,37], [42,38], [42,39], [42,40], [42,41]];
+
+    function isBlocked(tx, ty) {
+        const gridX = Math.round(tx / TILE_SIZE);
+        const gridY = Math.round(ty / TILE_SIZE);
+        return collisions.some(c => c[0] === gridX && c[1] === gridY);
+    }
+
+    // LOAD ASET MAP & PLAYER
+    const imgs = { up: new Image(), down: new Image(), left: new Image(), right: new Image(), map: new Image() };
+    imgs.up.src = 'atas.png'; imgs.down.src = 'bawah.png';
+    imgs.left.src = 'kiri.png'; imgs.right.src = 'kanan.png';
+    imgs.map.src = 'map.png';
+
+    let loadedCount = 0;
+    Object.keys(imgs).forEach(key => {
+        imgs[key].onload = () => { if(++loadedCount === 5) gameLoop(); };
+    });
+
+    // INPUT SYSTEM
+    const keys = { up: false, down: false, left: false, right: false };
+
+    window.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        if (key === 'arrowup' || key === 'w') { keys.up = true; document.getElementById('upBtn').classList.add('active-style'); }
+        if (key === 'arrowdown' || key === 's') { keys.down = true; document.getElementById('downBtn').classList.add('active-style'); }
+        if (key === 'arrowleft' || key === 'a') { keys.left = true; document.getElementById('leftBtn').classList.add('active-style'); }
+        if (key === 'arrowright' || key === 'd') { keys.right = true; document.getElementById('rightBtn').classList.add('active-style'); }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        const key = e.key.toLowerCase();
+        if (key === 'arrowup' || key === 'w') { keys.up = false; document.getElementById('upBtn').classList.remove('active-style'); }
+        if (key === 'arrowdown' || key === 's') { keys.down = false; document.getElementById('downBtn').classList.remove('active-style'); }
+        if (key === 'arrowleft' || key === 'a') { keys.left = false; document.getElementById('leftBtn').classList.remove('active-style'); }
+        if (key === 'arrowright' || key === 'd') { keys.right = false; document.getElementById('rightBtn').classList.remove('active-style'); }
+    });
+
+    function setupBtn(id, k) {
+        const b = document.getElementById(id);
+        b.addEventListener('pointerdown', (e) => { e.preventDefault(); keys[k] = true; });
+        b.addEventListener('pointerup', (e) => { e.preventDefault(); keys[k] = false; });
+        b.addEventListener('pointerleave', (e) => { e.preventDefault(); keys[k] = false; });
+    }
+    setupBtn('upBtn', 'up'); setupBtn('downBtn', 'down');
+    setupBtn('leftBtn', 'left'); setupBtn('rightBtn', 'right');
+
+    function gameLoop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (!player.isWalking) {
+            let nextX = player.targetX, nextY = player.targetY;
+            if (keys.up) { nextY -= TILE_SIZE; player.direction = 'up'; }
+            else if (keys.down) { nextY += TILE_SIZE; player.direction = 'down'; }
+            else if (keys.left) { nextX -= TILE_SIZE; player.direction = 'left'; }
+            else if (keys.right) { nextX += TILE_SIZE; player.direction = 'right'; }
+
+            if (nextX !== player.x || nextY !== player.y) {
+                if (nextX >= 0 && nextX < MAP_WIDTH && nextY >= 0 && nextY < MAP_HEIGHT && !isBlocked(nextX, nextY)) {
+                    player.targetX = nextX; player.targetY = nextY; player.isWalking = true;
+                }
+            }
+        } else {
+            if (player.x < player.targetX) player.x += MOVE_SPEED;
+            if (player.x > player.targetX) player.x -= MOVE_SPEED;
+            if (player.y < player.targetY) player.y += MOVE_SPEED;
+            if (player.y > player.targetY) player.y -= MOVE_SPEED;
+            if (Math.abs(player.x - player.targetX) < 0.1 && Math.abs(player.y - player.targetY) < 0.1) {
+                player.x = player.targetX; player.y = player.targetY; player.isWalking = false;
+            }
+        }
+
+        const camX = (canvas.width / 2) - (player.x + TILE_SIZE / 2);
+        const camY = (canvas.height / 2) - (player.y + TILE_SIZE / 2);
+
+        ctx.save();
+        ctx.translate(camX, camY);
+        ctx.drawImage(imgs.map, 0, 0, MAP_WIDTH, MAP_HEIGHT);
+        
+        if (DEBUG_MODE) {
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+            for(let x=0; x<MAP_WIDTH; x+=TILE_SIZE) {
+                for(let y=0; y<MAP_HEIGHT; y+=TILE_SIZE) {
+                    ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+                    if (isBlocked(x, y)) { ctx.fillStyle = "rgba(255, 0, 0, 0.25)"; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); }
+                }
+            }
+        }
+        ctx.restore();
+
+        const img = imgs[player.direction];
+        const sW = img.width / 3, sH = img.height;
+        const dW = sW * CHAR_SCALE, dH = sH * CHAR_SCALE;
+        const charX = (canvas.width / 2) - (dW / 2);
+        const charY = (canvas.height / 2) - (dH - (TILE_SIZE / 2));
+        
+        player.frame = player.isWalking ? Math.floor(Date.now() / 150) % 3 : 1;
+        ctx.drawImage(img, player.frame * sW, 0, sW, sH, Math.floor(charX), Math.floor(charY), dW, dH);
+
+        requestAnimationFrame(gameLoop);
+    }
+</script>
 </body>
 </html>
